@@ -1,0 +1,635 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="摩周湖・屈斜路湖・硫黄山から飲食店まで。北海道弟子屈町の観光スポットと営業時間を地図で確認できます。">
+  <title>弟子屈町 観光MAP</title>
+  <link rel="stylesheet"
+        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+        crossorigin="anonymous">
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #122f46;
+      --muted: #496476;
+      --blue: #075779;
+      --line: #cbdde6;
+      --paper: #f2f8fb;
+      --white: #fff;
+      font-family: system-ui, "Hiragino Sans", "Yu Gothic", Meiryo, sans-serif;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    body { margin: 0; background: var(--paper); color: var(--ink); line-height: 1.65; }
+    button, a { -webkit-tap-highlight-color: transparent; }
+    button { font: inherit; cursor: pointer; color: inherit; }
+    a { color: var(--blue); text-underline-offset: .18em; }
+    :focus-visible { outline: 3px solid #d28014; outline-offset: 3px; }
+    [hidden] { display: none !important; }
+
+    .wrap { width: min(100% - 2rem, 70rem); margin-inline: auto; }
+    .hero {
+      background: linear-gradient(125deg, #0c304c, #075575);
+      color: white;
+      padding: clamp(1.3rem, 5vw, 3rem) 0 0;
+    }
+    .hero p { margin: 0 0 .25rem; color: #d1ecf7; }
+    .hero h1 { margin: 0; font-size: clamp(1.85rem, 6vw, 3.5rem); line-height: 1.2; }
+    .hero-ornament {
+      height: 20px;
+      margin-top: 1.3rem;
+      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='84' height='20' viewBox='0 0 84 20'%3E%3Cg fill='none' stroke='%2397d3e8' stroke-width='1.25'%3E%3Cpath d='M0 10h8c8 0 8-7 16-7s12 7 18 7 10-7 18-7 8 7 16 7h8M0 10h8c8 0 8 7 16 7s12-7 18-7 10 7 18 7 8-7 16-7h8M36 10l6-6 6 6-6 6z'/%3E%3C/g%3E%3C/svg%3E") repeat-x center;
+    }
+
+    main { padding-block: 1rem 2.5rem; }
+    .filters { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: .85rem; }
+    .chip, .plain, .action {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: .4rem;
+      min-height: 44px;
+      padding: .45rem .85rem;
+      border: 1px solid var(--line);
+      background: white;
+      border-radius: .65rem;
+      font-weight: 700;
+      text-decoration: none;
+    }
+    .chip { border-radius: 999px; }
+    .chip[aria-pressed="true"], .primary {
+      background: var(--blue);
+      border-color: var(--blue);
+      color: white;
+    }
+    .map-card {
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 1rem;
+      background: white;
+    }
+    #map {
+      height: clamp(320px, 54vh, 620px);
+      background: #e0edf3;
+      isolation: isolate;
+    }
+    #map .leaflet-control-zoom a {
+      width: 44px;
+      height: 44px;
+      line-height: 44px;
+    }
+    .map-tools { display: flex; align-items: center; flex-wrap: wrap; gap: .65rem; padding: .65rem; }
+    .map-tools p { margin: 0; color: var(--muted); font-size: .9rem; }
+    .map-note { padding: .6rem .8rem; margin: 0; background: #fff3dc; }
+    .map-pin {
+      display: grid;
+      place-items: center;
+      position: relative;
+      width: 44px;
+      height: 44px;
+      border: 3px solid white;
+      border-radius: 50%;
+      background: var(--pin);
+      color: white;
+      font: 800 17px/1 system-ui, sans-serif;
+      box-shadow: 0 2px 7px #0b213a80;
+    }
+    .map-pin::after {
+      position: absolute;
+      top: 100%;
+      content: "";
+      border: 6px solid transparent;
+      border-top-color: white;
+    }
+
+    .list-bar { display: flex; align-items: baseline; gap: .8rem; margin-top: 1.4rem; }
+    .list-bar h2, .list-bar p { margin: 0 0 .65rem; }
+    .list-bar p { color: var(--muted); }
+    #list {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
+      gap: .65rem;
+      padding: 0;
+      margin: 0;
+      list-style: none;
+    }
+    .spot-card {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: .75rem;
+      width: 100%;
+      min-height: 84px;
+      padding: .8rem;
+      text-align: left;
+      border: 1px solid var(--line);
+      border-radius: .85rem;
+      background: white;
+    }
+    .spot-card:hover { border-color: var(--blue); }
+    .spot-card strong, .spot-card small { display: block; }
+    .spot-card small { color: var(--muted); }
+    .spot-icon {
+      display: grid;
+      place-items: center;
+      width: 2.35rem;
+      aspect-ratio: 1;
+      border-radius: .65rem;
+      color: white;
+      background: var(--pin);
+      font-weight: 800;
+    }
+
+    dialog {
+      position: fixed;
+      inset: auto 0 0;
+      width: 100%;
+      max-width: min(100%, 39rem);
+      max-height: 86vh;
+      max-height: 86dvh;
+      padding: 0;
+      margin: 0 auto;
+      border: 0;
+      border-radius: 1.2rem 1.2rem 0 0;
+      color: var(--ink);
+      background: white;
+      box-shadow: 0 0 2rem #0d294761;
+      overscroll-behavior: contain;
+    }
+    dialog::backdrop { background: #081e38a6; }
+    body.panel-open { overflow: hidden; }
+    .panel-head {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: .7rem;
+      padding: .85rem 1rem;
+      border-bottom: 1px solid var(--line);
+      background: white;
+    }
+    .panel-head p { margin: 0; color: var(--muted); font-size: .85rem; }
+    .panel-head h2 { font-size: clamp(1.15rem, 4.5vw, 1.65rem); margin: 0; line-height: 1.35; }
+    .panel-head button { flex: none; }
+    .panel-body { padding: 1rem 1rem max(1rem, env(safe-area-inset-bottom)); }
+    .facts {
+      display: grid;
+      grid-template-columns: minmax(4.5rem, auto) 1fr;
+      gap: .55rem .8rem;
+      margin: 0 0 1rem;
+      padding: .85rem;
+      border-radius: .75rem;
+      background: var(--paper);
+    }
+    .facts dt { font-weight: 750; }
+    .facts dd { margin: 0; white-space: pre-line; }
+    .actions { display: flex; flex-wrap: wrap; gap: .55rem; }
+    .actions a { flex: 1 1 9rem; text-align: center; }
+    .notice { padding: .6rem .8rem; background: #fff3dc; border-radius: .6rem; }
+    figure { margin: 1rem 0; }
+    figure img {
+      display: block;
+      width: 100%;
+      max-height: 320px;
+      object-fit: contain;
+      background: var(--paper);
+      border-radius: .7rem;
+    }
+    figcaption, .sources { color: var(--muted); font-size: .85rem; }
+    .sources { margin-bottom: 0; }
+
+    @media (min-width: 720px) {
+      dialog { inset: 0; width: calc(100% - 2rem); margin: auto; border-radius: 1.2rem; }
+    }
+  </style>
+  <script defer
+          src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+          crossorigin="anonymous"></script>
+</head>
+<body>
+  <header class="hero">
+    <div class="wrap">
+      <p>北海道・阿寒摩周国立公園周辺</p>
+      <h1>弟子屈町 観光MAP</h1>
+    </div>
+    <!-- アイヌ文化の文様に着想を得た、曲線とひし形のオリジナル装飾。 -->
+    <div class="hero-ornament" aria-hidden="true"></div>
+  </header>
+
+  <main class="wrap">
+    <nav class="filters" id="filters" aria-label="スポットの絞り込み"></nav>
+
+    <section class="map-card" aria-label="観光地図">
+      <p id="map-note" class="map-note" role="status" hidden></p>
+      <div id="map" role="region" aria-label="弟子屈町のスポット地図"></div>
+      <div class="map-tools">
+        <button class="plain" id="fit-map" type="button" disabled>表示中のピンを見渡す</button>
+        <p>ピンをタップすると、営業時間や行き方が見られます。</p>
+      </div>
+    </section>
+
+    <section aria-labelledby="list-title">
+      <div class="list-bar">
+        <h2 id="list-title">スポット一覧</h2>
+        <p id="count" role="status"></p>
+      </div>
+      <ul id="list"></ul>
+    </section>
+
+    <noscript><p>この観光MAPを使うには、ブラウザでJavaScriptを有効にしてください。</p></noscript>
+  </main>
+
+  <dialog id="detail" aria-labelledby="spot-name">
+    <header class="panel-head">
+      <div>
+        <p id="spot-category"></p>
+        <h2 id="spot-name"></h2>
+      </div>
+      <form method="dialog">
+        <button class="plain" type="submit" autofocus>閉じる</button>
+      </form>
+    </header>
+
+    <div class="panel-body">
+      <dl class="facts" id="spot-facts"></dl>
+
+      <div class="actions">
+        <a class="action primary" id="spot-site" target="_blank" rel="noopener noreferrer"></a>
+        <a class="action" id="spot-directions" target="_blank" rel="noopener noreferrer">経路を調べる ↗</a>
+      </div>
+
+      <p class="notice" id="spot-notice" hidden></p>
+      <p id="spot-description"></p>
+      <div id="spot-photo"></div>
+      <p class="sources" id="spot-sources"></p>
+    </div>
+  </dialog>
+
+  <script>
+    "use strict";
+
+    const categories = {
+      all:     { label: "すべて", icon: "", color: "#075779" },
+      nature:  { label: "自然・観光", icon: "山", color: "#146147" },
+      onsen:   { label: "温泉", icon: "湯", color: "#88386b" },
+      food:    { label: "グルメ", icon: "食", color: "#9a411c" },
+      gifts:   { label: "お土産", icon: "土", color: "#244e91" }
+    };
+
+    const facilityRoadNotice =
+      "施設案内と冬季のお知らせで開店時刻の表記が異なります。早朝に訪れる場合は施設へご確認ください。冬季は第一展望台〜川湯間の道道52号が通行止めです。";
+    const winterRoadUrl = "https://mashuko-iozan.jp/blog/2026/10/759";
+    const sharedParking = "あり。普通車は5～10月に500円。11～4月は無料。";
+
+    // スポットの追加・差し替えは、この配列を編集します。
+    // point は [緯度, 経度]。営業時間などを更新したら checked も更新します。
+    // photo を載せるときは、画像URL・原典・撮影者・ライセンスを記入します。
+    const spots = [
+      {
+        name: "摩周湖第一展望台・カムイテラス",
+        category: "nature",
+        area: "摩周湖",
+        point: [43.555933, 144.506931],
+        description: "摩周湖を外輪山の上から見渡せる展望スポット。天気によって表情を変える湖を眺められ、売店のあるカムイテラスで休憩もできます。",
+        hours: "カムイテラス売店 8:30～17:00（施設案内の掲載時刻）",
+        closed: "売店は不定休",
+        fee: "展望台の見学は無料",
+        parking: sharedParking,
+        address: "北海道川上郡弟子屈町 摩周湖第一展望台",
+        url: "https://mashuko-iozan.jp/mashuko-kamui-terrace",
+        official: true,
+        checked: "2026-11-25",
+        notice: facilityRoadNotice,
+        sources: [
+          ["施設案内", "https://mashuko-iozan.jp/mashuko-kamui-terrace"],
+          ["冬季通行止め・営業案内", winterRoadUrl],
+          ["展望台の地図", "https://www.navitime.co.jp/poi?spot=02301-1500603"]
+        ],
+        photo: {
+          url: "https://upload.wikimedia.org/wikipedia/commons/0/0c/Mashu-ko_Lake.jpg",
+          alt: "摩周湖第一展望台から見た摩周湖",
+          original: "https://commons.wikimedia.org/wiki/File:Mashu-ko_Lake.jpg",
+          author: "Fe-Taq",
+          license: "パブリックドメイン"
+        }
+      },
+      {
+        name: "屈斜路湖・砂湯",
+        category: "onsen",
+        area: "屈斜路湖東岸",
+        point: [43.6243, 144.359784],
+        description: "砂浜を掘ると温泉が湧き出す屈斜路湖畔のスポット。湖を眺めながら、砂の下から湧くお湯に触れられます。",
+        hours: "屋外の湖畔。周辺売店の営業時間は要確認",
+        closed: "周辺施設の休業日は要確認",
+        fee: "湖畔の立ち寄りは無料",
+        parking: "あり",
+        address: "北海道川上郡弟子屈町 屈斜路湖砂湯",
+        url: "https://www.visit-hokkaido.jp/spa/spot/detail_12084.html",
+        official: false,
+        checked: "2026-11-25",
+        sources: [
+          ["北海道公式観光サイト", "https://www.visit-hokkaido.jp/spa/spot/detail_12084.html"],
+          ["湖畔の地図・施設情報", "https://www.navitime.co.jp/poi?spot=02301-1503011"]
+        ],
+        photo: {
+          url: "https://upload.wikimedia.org/wikipedia/commons/4/4a/Sunayu_Onsen_2.jpg",
+          alt: "砂湯から見た屈斜路湖の湖畔",
+          original: "https://commons.wikimedia.org/wiki/File:Sunayu_Onsen_2.jpg",
+          author: "Alberth2",
+          license: "CC BY-SA 4.0",
+          licenseUrl: "https://creativecommons.org/licenses/by-sa/4.0/"
+        }
+      },
+      {
+        name: "硫黄山（アトサヌプリ）・MOKMOKベース",
+        category: "nature",
+        area: "川湯",
+        point: [43.61791, 144.44327],
+        description: "山のふもとで、噴気孔から立ちのぼる白い蒸気を見られます。駐車場そばのMOKMOKベースには、飲食やお土産のコーナーがあります。",
+        hours: "MOKMOKベース 8:30～17:00（施設案内の掲載時刻）",
+        closed: "施設は不定休",
+        fee: "飲食・買い物は商品による",
+        parking: sharedParking,
+        address: "北海道川上郡弟子屈町川湯温泉1丁目",
+        url: "https://mashuko-iozan.jp/iozan-rest-house",
+        official: true,
+        checked: "2026-11-25",
+        notice: facilityRoadNotice,
+        sources: [
+          ["施設案内", "https://mashuko-iozan.jp/iozan-rest-house"],
+          ["冬季通行止め・営業案内", winterRoadUrl],
+          ["レストハウスの地図", "https://mapfan.com/spots/S34HY,CJ,C4FE"]
+        ],
+        photo: {
+          url: "https://upload.wikimedia.org/wikipedia/commons/a/a0/Iou-zan_hokkaido01.jpg",
+          alt: "硫黄山の斜面から立ちのぼる白い蒸気",
+          original: "https://commons.wikimedia.org/wiki/File:Iou-zan_hokkaido01.jpg",
+          author: "Miya.m",
+          license: "CC BY-SA 3.0",
+          licenseUrl: "https://creativecommons.org/licenses/by-sa/3.0/"
+        }
+      },
+      {
+        name: "弟子屈ラーメン 弟子屈総本店",
+        category: "food",
+        area: "弟子屈市街",
+        point: [43.4962843, 144.4542873],
+        description: "魚介のうまみを効かせた醤油ラーメンや、北海道の味噌を使ったラーメンが味わえるお店です。",
+        hours: "11:00～20:00",
+        closed: "1月1日",
+        fee: "メニューによる",
+        parking: "要確認",
+        address: "北海道川上郡弟子屈町摩周1丁目1-18",
+        url: "https://www.teshikaga-ramen.com/shop/teshikaga/",
+        official: true,
+        checked: "2026-11-25",
+        notice: "公式サイトに改装に伴う仮店舗営業の案内があります。訪問前に営業場所をご確認ください。ピンは公式サイト掲載の本店住所です。",
+        sources: [
+          ["店舗公式サイト", "https://www.teshikaga-ramen.com/shop/teshikaga/"],
+          ["本店の地図", "https://mapfan.com/spots/S3W4W,CJ,6ARPT"]
+        ]
+      },
+      {
+        name: "道の駅 摩周温泉",
+        category: "gifts",
+        area: "摩周温泉",
+        point: [43.4923442, 144.4475994],
+        description: "弟子屈市街にある道の駅。ドライブの休憩やお土産探しに立ち寄れます。売店のほか、ジェラートや観光案内もあります。",
+        hours: "5～10月 9:00～18:00\n11～4月 9:00～17:00",
+        closed: "12月30日～1月3日",
+        fee: "入館無料。飲食・買い物は商品による",
+        parking: "あり。普通車66台、大型9台、身障者用3台",
+        address: "北海道川上郡弟子屈町湯の島3丁目5-5",
+        url: "https://hokkaido-michinoeki.jp/?p=440",
+        official: false,
+        checked: "2026-11-25",
+        sources: [
+          ["北の道の駅（開館時間・休館日）", "https://hokkaido-michinoeki.jp/?p=440"],
+          ["全国「道の駅」連絡会（売店情報）", "https://www.michi-no-eki.jp/stations/views/18796"],
+          ["道の駅の地図", "https://mapfan.com/spots/SC3IY,CJ,VP"]
+        ]
+      }
+    ];
+
+    const byId = (id) => document.getElementById(id);
+    const filters = byId("filters");
+    const list = byId("list");
+    const detail = byId("detail");
+    const mapNote = byId("map-note");
+    const fitButton = byId("fit-map");
+    const mapElement = byId("map");
+    let selected = "all";
+    let map;
+    let markers;
+    let previousFocus;
+
+    function element(tag, text, className) {
+      const node = document.createElement(tag);
+      if (text) node.textContent = text;
+      if (className) node.className = className;
+      return node;
+    }
+
+    function externalLink(label, url) {
+      const link = element("a", label);
+      link.href = url;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      return link;
+    }
+
+    function visibleSpots() {
+      return spots.filter((spot) => selected === "all" || spot.category === selected);
+    }
+
+    function fitMap() {
+      if (!map) return;
+      const points = visibleSpots().map((spot) => spot.point);
+      if (points.length) {
+        map.fitBounds(points, { padding: [34, 36], maxZoom: 14, animate: false });
+      }
+    }
+
+    function renderPhoto(photo) {
+      const holder = byId("spot-photo");
+      holder.replaceChildren();
+      if (!photo) return;
+
+      const figure = element("figure");
+      const image = element("img");
+      image.alt = photo.alt;
+      image.decoding = "async";
+      const caption = element("figcaption");
+      caption.append("写真：", externalLink(photo.author, photo.original), " ／ ");
+      caption.append(photo.licenseUrl
+        ? externalLink(photo.license, photo.licenseUrl)
+        : photo.license);
+
+      image.addEventListener("error", () => {
+        image.replaceWith(element("p", "写真は下の出典リンクからご覧いただけます。"));
+      }, { once: true });
+
+      figure.append(image, caption);
+      holder.append(figure);
+      image.src = photo.url;
+    }
+
+    function openSpot(spot, trigger) {
+      previousFocus = trigger;
+      byId("spot-category").textContent = `${categories[spot.category].label} ／ ${spot.area}`;
+      byId("spot-name").textContent = spot.name;
+      byId("spot-description").textContent = spot.description;
+
+      const facts = byId("spot-facts");
+      facts.replaceChildren();
+      for (const [label, value] of [
+        ["営業時間", spot.hours],
+        ["定休日", spot.closed],
+        ["料金", spot.fee],
+        ["駐車場", spot.parking],
+        ["住所", spot.address]
+      ]) {
+        facts.append(element("dt", label), element("dd", value || "要確認"));
+      }
+
+      const site = byId("spot-site");
+      site.href = spot.url;
+      site.textContent = spot.official ? "公式サイトを見る ↗" : "紹介ページを見る ↗";
+      byId("spot-directions").href =
+        `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(spot.point.join(","))}`;
+
+      const notice = byId("spot-notice");
+      notice.textContent = spot.notice || "";
+      notice.hidden = !spot.notice;
+
+      renderPhoto(spot.photo);
+      const sources = byId("spot-sources");
+      sources.replaceChildren(`情報確認日 ${spot.checked}。出典：`);
+      spot.sources.forEach(([label, url], index) => {
+        if (index) sources.append(" ／ ");
+        sources.append(externalLink(label, url));
+      });
+
+      detail.showModal();
+      document.body.classList.add("panel-open");
+      detail.scrollTop = 0;
+    }
+
+    detail.addEventListener("close", () => {
+      document.body.classList.remove("panel-open");
+      previousFocus?.focus({ preventScroll: true });
+    });
+
+    function renderSpots() {
+      const items = visibleSpots();
+      byId("count").textContent = `${items.length}件`;
+      list.replaceChildren();
+      markers?.clearLayers();
+
+      for (const spot of items) {
+        const category = categories[spot.category];
+        const card = element("button", "", "spot-card");
+        card.type = "button";
+        card.style.setProperty("--pin", category.color);
+        const icon = element("span", category.icon, "spot-icon");
+        icon.setAttribute("aria-hidden", "true");
+        const label = element("span");
+        label.append(
+          element("strong", spot.name),
+          element("small", `${category.label} ／ ${spot.area}`)
+        );
+        const arrow = element("span", "›");
+        arrow.setAttribute("aria-hidden", "true");
+        card.append(icon, label, arrow);
+        card.addEventListener("click", () => openSpot(spot, card));
+
+        const item = element("li");
+        item.append(card);
+        list.append(item);
+
+        if (markers) {
+          const pin = element("span", category.icon, "map-pin");
+          pin.style.setProperty("--pin", category.color);
+          pin.setAttribute("aria-hidden", "true");
+          const marker = L.marker(spot.point, {
+            title: spot.name,
+            alt: spot.name,
+            autoPanOnFocus: false,
+            icon: L.divIcon({
+              className: "spot-marker",
+              html: pin,
+              iconSize: [44, 44],
+              iconAnchor: [22, 48]
+            })
+          }).addTo(markers);
+
+          const markerElement = marker.getElement();
+          markerElement.setAttribute("aria-label", spot.name);
+          markerElement.setAttribute("aria-haspopup", "dialog");
+          marker.on("click", () => openSpot(spot, markerElement));
+          markerElement.addEventListener("keydown", (event) => {
+            if (event.key === " " && !event.repeat) {
+              event.preventDefault();
+              openSpot(spot, markerElement);
+            }
+          });
+        }
+      }
+
+      for (const button of filters.querySelectorAll("button")) {
+        button.setAttribute("aria-pressed", String(button.dataset.category === selected));
+      }
+      fitButton.disabled = !map || items.length === 0;
+    }
+
+    for (const [key, category] of Object.entries(categories)) {
+      const chip = element("button", category.label, "chip");
+      chip.type = "button";
+      chip.dataset.category = key;
+      chip.addEventListener("click", () => {
+        selected = key;
+        renderSpots();
+        fitMap();
+      });
+      filters.append(chip);
+    }
+
+    if (window.L) {
+      map = L.map(mapElement, { scrollWheelZoom: false, minZoom: 7, maxZoom: 19 });
+      map.zoomControl.setPosition("bottomright");
+
+      const zoomButtons = map.getContainer().querySelectorAll(".leaflet-control-zoom a");
+      const zoomLabels = ["地図を拡大", "地図を縮小"];
+      zoomButtons.forEach((button, index) => {
+        button.title = zoomLabels[index];
+        button.setAttribute("aria-label", zoomLabels[index]);
+      });
+
+      const tiles = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+      }).addTo(map);
+
+      tiles.on("tileerror", () => {
+        mapNote.textContent = "地図の一部を読み込めませんでした。スポット一覧から詳細や経路を確認できます。";
+        mapNote.hidden = false;
+      });
+
+      markers = L.layerGroup().addTo(map);
+      fitButton.addEventListener("click", fitMap);
+    } else {
+      mapElement.hidden = true;
+      mapNote.textContent = "地図を読み込めませんでした。スポット一覧から詳細や経路を確認できます。";
+      mapNote.hidden = false;
+    }
+
+    renderSpots();
+    fitMap();
+  </script>
+</body>
+</html>
